@@ -263,18 +263,19 @@ def priority_score(bus_state, all_bus_states, weights):
 
 # ==========================================================
 # run_scheduler
-# Kaam: requests ko process karta hai - charger free? charge : wait.
-#       Jhagde me (ek charger, kareeb same time) WEIGHTS se decide hota
-#       hai kaun pehle - rules.py ke scores + scenario ke weights se.
-# Kyun: alag weight -> alag schedule (spec ka core).
+# Kaam: requests ko time-order me process karta hai. Jab ek charger
+#       free ho aur kai buses wait kar rahi hon, to WEIGHTS+rules ke
+#       score se decide hota hai kaun pehle (jisne zyada jhela / company
+#       pichhe). Wait_so_far live update hota hai, isliye score asli kaam karta.
+# Kyun: alag weight -> alag schedule, aur wait kam.
 # ==========================================================
 def run_scheduler(requests, stations, charge_time, weights):
+    # har station ka charger kab tak busy - shuru me sab free (0)
     charger_free_at = {}
     for s in stations:
         charger_free_at[s] = 0
 
-    # har bus ka ab tak ka wait (rules ko ye chahiye)
-    # shuru me sab 0
+    # har bus ka ab tak ka wait (rules ko chahiye), shuru 0
     bus_states = {}
     for req in requests:
         bus_states[req["bus_id"]] = {
@@ -283,18 +284,39 @@ def run_scheduler(requests, stations, charge_time, weights):
             "wait_so_far": 0,
         }
 
-    # requests ko sort: pehle arrive time, phir (same time pe) zyada score wali pehle
-    # score ke liye - is waqt ka wait_so_far use karte hain
-    def sort_key(req):
-        state = bus_states[req["bus_id"]]
-        score = priority_score(state, list(bus_states.values()), weights)
-        # arrive pehle (chhota pehle), phir score (zyada pehle -> isliye -score)
-        return (req["arrive"], -score)
-
-    requests = sorted(requests, key=sort_key)
+    # jo abhi process karni baaki - arrive time se sort (jo pehle aati pehle dekho)
+    pending = sorted(requests, key=lambda r: r["arrive"])
 
     results = []
-    for req in requests:
+
+    # ek-ek karke saari requests nipta do
+    while pending:
+        # abhi tak ki sabse jaldi wali request ka arrive time
+        next_arrive = pending[0]["arrive"]
+
+        # is waqt tak jo buses aa chuki hain aur jinka charger abhi busy hai
+        # un sab me se WEIGHTS+score se chuno kaun pehle - baaki abhi nahi
+        # simple aur sahi tareeka: har request ke liye uska actual start nikalo,
+        # phir jiska start sabse pehle aur (tie pe) score zyada, use process karo
+
+        def candidate_start(req):
+            free_at = charger_free_at[req["station"]]
+            return max(
+                req["arrive"], free_at
+            )  # bus aane ke baad hi, charger free hone ke baad hi
+
+        # sabse achhi request chuno:
+        # 1. jiska start sabse pehle (kam wait)
+        # 2. tie pe - jiska score zyada (weights)
+        def pick_key(req):
+            state = bus_states[req["bus_id"]]
+            score = priority_score(state, list(bus_states.values()), weights)
+            return (candidate_start(req), -score)
+
+        # pending me se best request
+        req = min(pending, key=pick_key)
+        pending.remove(req)
+
         station = req["station"]
         arrive = req["arrive"]
         free_at = charger_free_at[station]
@@ -309,7 +331,7 @@ def run_scheduler(requests, stations, charge_time, weights):
         finish = start + charge_time
         charger_free_at[station] = finish
 
-        # is bus ka wait_so_far update karo (rules ke liye)
+        # wait_so_far update - ab score asli kaam karega
         bus_states[req["bus_id"]]["wait_so_far"] += wait
 
         results.append(
