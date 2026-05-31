@@ -95,7 +95,7 @@ for bus_id in by_bus:
                 "Operator": r["operator"],
                 "Station": r["station"],
                 "Pahunchi": scheduler.minutes_to_time(r["arrive"]),
-                "Wait (min)": r["wait"],
+                "Wait (min)": f"{r['wait'] // 60:02d}:{r['wait'] % 60:02d}",
                 "Charge Start": scheduler.minutes_to_time(r["start"]),
                 "Charge End": scheduler.minutes_to_time(r["finish"]),
             }
@@ -119,7 +119,7 @@ for station in by_station:
                 "Order Time": scheduler.minutes_to_time(r["start"]),
                 "Bus": r["bus_id"],
                 "Operator": r["operator"],
-                "Wait (min)": r["wait"],
+                "Wait (min)": f"{r['wait'] // 60:02d}:{r['wait'] % 60:02d}",
                 "Charge": scheduler.minutes_to_time(r["start"])
                 + " - "
                 + scheduler.minutes_to_time(r["finish"]),

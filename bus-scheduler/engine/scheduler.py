@@ -37,15 +37,32 @@ def time_to_minutes(time_str):
 
 # ==========================================================
 # minutes_to_time
-# Kaam: minutes ko wapas "HH:MM" text me badalta hai (dikhane ke liye).
-# Kyun: calculation minutes me, par insaan ko "21:05" padhna aasaan.
-# Dummy: minutes_to_time(1265) -> "21:05"
+# Kaam: minutes ko 12-hour AM/PM format me badalta hai.
+#       Agle din ka time (24:00+) bhi sahi (26:00 -> 2:00 AM next day).
 # ==========================================================
 def minutes_to_time(total_minutes):
-    total_minutes = int(total_minutes)  # float (20.0) -> int (20)
-    hours = total_minutes // 60  # poore ghante
-    minutes = total_minutes % 60  # bache hue minute
-    return f"{hours:02d}:{minutes:02d}"  ## "21:05" format me
+    total_minutes = int(total_minutes)
+
+    # agle din ka time? (1440 min = 24 ghante = 1 din)
+    day = total_minutes // (24 * 60)  # kaun sa din (0 = aaj, 1 = kal)
+    mins_in_day = total_minutes % (24 * 60)  # us din ke andar ke minute
+
+    hours = mins_in_day // 60
+    minutes = mins_in_day % 60
+
+    # 24-hour ko 12-hour AM/PM me badlo
+    suffix = "AM" if hours < 12 else "PM"
+    hour12 = hours % 12
+    if hour12 == 0:
+        hour12 = 12  # 0 ko 12 dikhao (12 AM / 12 PM)
+
+    time_str = f"{hour12}:{minutes:02d} {suffix}"
+
+    # agar agle din ka hai to "(+1d)" lagao
+    if day > 0:
+        time_str = time_str + f" (+{day}d)"
+
+    return time_str
 
 
 # ==========================================================
